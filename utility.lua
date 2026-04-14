@@ -69,7 +69,6 @@ end
 function MakeupEditor:AddMakeup(...)
 	local isServer = RunService:IsServer()
 	local args = {...}
-	print(args)
 	if isServer then --* SERVER
 		local client : Player, id : number, IsSecret : boolean
 		if typeof(args[1]) == 'Instance' and args[1]:IsA('Player') then
@@ -131,7 +130,6 @@ function MakeupEditor:AttachMakeupToCharacter(makeup : Accessory | Decal, charac
 		makeup = makeup:FindFirstChildWhichIsA('Accessory') or makeup:FindFirstChildWhichIsA('Decal')
 	end
 	
-	print(makeup.ClassName)
 	if makeup:IsA('Accessory') then
 		makeup.Parent = character
 	elseif makeup:IsA('Decal') then
