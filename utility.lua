@@ -1,14 +1,13 @@
 --[[	Authour: .................................. LUA_Writer
-		Available on 	Github: ...................
-						Roblox DevForum: .......... 			
+		Available on 	Github: ................... https://github.com/Cats-AreCute/Roblox_MakeupDescription
+						Roblox DevForum: .......... https://devforum.roblox.com/t/makeup-for-humanoiddescription/4576661
 		version: ..................................	1.0.0
-		Last updated: ............................. 4/14/2026
+		Last updated: ............................. 4/15/2026 12:53AM (GMT+8)
 --]]
 --###############################################################################################################
 -- Installation
 local RunService						=	game:GetService('RunService')
 local InsertService						=	game:GetService('InsertService')
-local MarketplaceService				=	game:GetService('MarketplaceService')
 -- Library
 local ProvideDebugResponses				=	true	--? For debugging purposes (default: false)
 local makeupNetwork						=	script.Parent.makeup
