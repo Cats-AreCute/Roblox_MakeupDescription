@@ -1,15 +1,21 @@
 --[[	Authour: .................................. LUA_Writer
 		Available on 	Github: ................... https://github.com/Cats-AreCute/Roblox_MakeupDescription
-						Roblox DevForum: .......... https://devforum.roblox.com/t/makeup-for-humanoiddescription/4576661
+						Roblox DevForum: .......... https://devforum.roblox.com/t/makeup-for-humanoiddescription/4576661		
 		version: ..................................	1.0.0
-		Last updated: ............................. 4/15/2026 12:53AM (GMT+8)
+		Last updated: ............................. 4/16/2026
+				> Added MakeupEditor:RemovePreviousMakeupDescription().
+				> Fix initiate scripts.
+		Posted: ................................... 4/14/2026
 --]]
 --###############################################################################################################
 -- Installation
 local RunService						=	game:GetService('RunService')
 local InsertService						=	game:GetService('InsertService')
 -- Library
+-- * Settings
 local ProvideDebugResponses				=	true	--? For debugging purposes (default: false)
+local DeleteCustomsOnly					=	false	--? If your game has customized faces or decals for its faces that are not part of the faces, enable this.
+-- * Dictionary
 local makeupNetwork						=	script.Parent.makeup
 local MakeupDescriptionContents = {
 	"FaceMakeup",
@@ -18,14 +24,17 @@ local MakeupDescriptionContents = {
 	"EyebrowAccessory",
 	"EyelashAccessory"
 }
+local CreatedMakeups					=	{}
 --###############################################################################################################
 local MakeupEditor = {}
+
 
 ----------------------------------------------------------------------------------------------------------------
 --// __init_CLIENT()
 --> Initiates the script for the client version. 
 --! The script is recommended to be ran from StarterPlayerScripts instead of StarterGui/PlayerGui
 function MakeupEditor.__init_CLIENT()
+	assert(RunService:IsClient(), `(!!!) [MakeupDescription] This script must be ran through client scripts only. Request to initiate denied.`)
 	local actions = {
 		['remove'] = function(obj)
 			if typeof(obj) == 'table' then
@@ -48,6 +57,7 @@ end
 --> Initiates the script for the server version. 
 --! The script must be ran from a server script.
 function MakeupEditor.__init_SERVER()
+	assert(RunService:IsServer(), `(!!!) [MakeupDescription] This script must be ran through server scripts only. Request to initiate denied.`)
 	local actions = {
 		['add'] = function(id, isSecret)
 			MakeupEditor:AddMakeup(id, isSecret)
@@ -76,40 +86,39 @@ function MakeupEditor:AddMakeup(...)
 		else
 			id, IsSecret = unpack(args)
 		end
-		 --* Arguments
+		--* Arguments
 		--? IsSecret means the the makeup loaded can only be seen by that player.
-		
+
 		if ProvideDebugResponses then
 			print(`[Makeup Description] Makeup ID: {id}`)
 		end
-		
+
 		local success, LoadedMakeup = pcall(function()
 			return InsertService:LoadAsset(id)
 		end)
 		if success then
 			LoadedMakeup.Parent = workspace
-			
+
 			--// Secret
 			--> Allows the user to make the makeup only visible to themself.
 			--! No security is guaranteed.
-			print(IsSecret, client)
 			if IsSecret and client then
 				local RemoveFrom = game.Players:GetPlayers()
 				table.remove(RemoveFrom, table.find(RemoveFrom, client))
 				for _, hideTo in pairs(RemoveFrom) do
 					makeupNetwork:FireClient(hideTo, 'remove', {LoadedMakeup, LoadedMakeup:GetChildren()[1]})
 				end
-				
+
 				makeupNetwork:FireClient(client, 'add', LoadedMakeup)
 			end
-			
+
 			local callback = {}
-			
+
 			function callback:Attach(Character : Model | Humanoid)
 				Character = if Character:IsA('Humanoid') then Character:FindFirstAncestorWhichIsA('Model') else Character
 				MakeupEditor:AttachMakeupToCharacter(LoadedMakeup, Character)
 			end
-			
+
 			return callback
 		else
 			warn('[MakeupService ERROR] Ensure that you have input the correct id of the makeup. Error received:', LoadedMakeup, 'for the asset id: ',id)
@@ -129,11 +138,17 @@ function MakeupEditor:AttachMakeupToCharacter(makeup : Accessory | Decal, charac
 	if makeup:IsA('Model') then
 		makeup = makeup:FindFirstChildWhichIsA('Accessory') or makeup:FindFirstChildWhichIsA('Decal')
 	end
-	
+
+	if not CreatedMakeups[character] then
+		CreatedMakeups[character] = {accessories = {}, decals = {}}
+	end
+
 	if makeup:IsA('Accessory') then
 		makeup.Parent = character
+		table.insert(CreatedMakeups[character].accessories, makeup)
 	elseif makeup:IsA('Decal') then
 		makeup.Parent = character:FindFirstChild('Head')
+		table.insert(CreatedMakeups[character].decals, makeup)
 	end
 end
 
@@ -146,7 +161,7 @@ function MakeupEditor:ApplyHumanoidMakeupDescription(...)
 	if ProvideDebugResponses then
 		print(`[Makeup Description]`, args)
 	end
-	
+
 	local client, humanoid : Humanoid, description : HumanoidDescription | {}, isSecret : boolean
 	if RunService:IsServer() then --* SERVER
 		--? Inputs the data
@@ -165,12 +180,14 @@ function MakeupEditor:ApplyHumanoidMakeupDescription(...)
 
 	--? Apply the description
 	local HumanoidDescriptionIsComplete = MakeupEditor:IsContentComplete(description, true)
-	
+
 	if RunService:IsServer() then
+		MakeupEditor:RemovePreviousMakeupDescription(humanoid.Parent)
+		
 		for _, indexName in pairs(MakeupDescriptionContents) do
 			if client then --? Received from a client
 				local indexValue = description[indexName]
-				
+
 				if indexValue then
 					local NEW_MAKEUP = MakeupEditor:AddMakeup(client, indexValue, isSecret)
 					if NEW_MAKEUP then
@@ -194,7 +211,7 @@ function MakeupEditor:ApplyHumanoidMakeupDescription(...)
 			local indexValue = description:GetAttribute(indexName)
 			COMPILED_DESCRIPTION[indexName] = indexValue
 		end
-		
+
 		makeupNetwork:FireServer('view', humanoid, COMPILED_DESCRIPTION, isSecret)
 	end
 end
@@ -230,14 +247,14 @@ function MakeupEditor:IsContentComplete(description : HumanoidDescription, autoR
 		end
 		return --> Others are blacklsited
 	end
-	
-	
+
+
 	--?
 	local TableDescription = false
 	if typeof(description) == 'table' then
 		TableDescription = {}
 	end
-	
+
 	local DebugResponse = 0
 
 	for _, indexName in pairs(MakeupDescriptionContents) do
@@ -268,11 +285,51 @@ function MakeupEditor:IsContentComplete(description : HumanoidDescription, autoR
 	if ProvideDebugResponses then
 		print(`[Makeup Description] added {DebugResponse} attributes to the HumanoidDescription.`)
 	end
-	
+
 	if TableDescription then
 		return description --? (Client-Server)
 	else
 		return true --? (Server-Server)
+	end
+end
+
+----------------------------------------------------------------------------------------------------------------
+--// :RemovePreviousMakeupDescription()
+--> This will remove the makeups created by the module.
+function MakeupEditor:RemovePreviousMakeupDescription(character)
+	if not CreatedMakeups[character] then
+		return
+	end
+	
+	-- Accessory Makeups (FORCED)
+	for _, customized in pairs(CreatedMakeups[character].accessories) do
+		if customized then
+			customized:Destroy()
+		end
+	end
+	if DeleteCustomsOnly then
+		if not CreatedMakeups[character] then
+			if ProvideDebugResponses then
+				character.Name = character.Name or 'No name'
+				print(`[MakeupDescription] No makeups created for this character: {character.Name}`)
+			end
+			return
+		end
+		-- Faces
+		for _, customized in pairs(CreatedMakeups[character].decals) do
+			if customized then
+				customized:Destroy()
+			end
+		end
+	else
+		if character:FindFirstChild('Head') then
+			for _, faces in pairs(character:FindFirstChild('Head')) do
+				if faces:IsA('Decal') then
+					faces:Destroy()
+				end
+			end
+		end
+
 	end
 end
 
